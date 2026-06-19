@@ -1,0 +1,31 @@
+# dependencies
+node_modules/
+
+# build output
+dist/
+*.crx                 # signed extension bundles
+*.pem                 # extension private signing key (NEVER commit)
+*.zip                 # packed for store upload
+
+# typescript
+*.tsbuildinfo
+
+# editor
+.vite/
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json    # ok to share recommended-extensions list
+
+# logs
+*.log
+npm-debug.log*
+
+# env / secrets
+.env
+.env.local
+.env.*.local
+.dev.vars              # wrangler local secrets
+
+# cloudflare wrangler local state (per-project)
+.wrangler/

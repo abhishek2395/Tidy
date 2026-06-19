@@ -1,0 +1,19 @@
+name = "tidy-api"
+main = "src/index.ts"
+compatibility_date = "2025-07-18"
+
+# Daily free limit. Bump for testing; tighten for production.
+[vars]
+GEMINI_MODEL = "gemini-2.5-flash-lite"
+DAILY_FREE_LIMIT = "5"
+# When the secret GEMINI_API_KEY is not set (local dev) the worker falls back
+# to the mock provider. Set in production via:
+#   wrangler secret put GEMINI_API_KEY
+
+# KV namespace for the rate limit counter.
+# For local dev wrangler creates a per-project local store under .wrangler/state/.
+# Before first deploy, run: `wrangler kv namespace create TIDY_QUOTA` and
+# paste the returned id below (and a separate one for `preview_id` if used).
+[[kv_namespaces]]
+binding = "TIDY_QUOTA"
+id = "placeholder-set-before-deploy"
