@@ -1,9 +1,15 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { TRANSFORMS } from '../lib/transforms';
 import { strings } from '../lib/strings';
 import { clean } from '../transforms/clean';
 import { extract, formatExtractResult, summarizeExtractResult, totalMatches } from '../transforms/extract';
-import type { CursorAnchor, Transform } from '../types';
+import type {
+  CursorAnchor,
+  Transform,
+  TransformAiRequest,
+  TransformAiResponse,
+  TransformAiErrorReason,
+} from '../types';
 
 interface Props {
   anchor: CursorAnchor | null;
@@ -19,7 +25,13 @@ type View =
   | { kind: 'menu' }
   | { kind: 'result'; transform: Transform; output: string; summary: string; unchanged: boolean }
   | { kind: 'pending'; transform: Transform }
-  | { kind: 'unavailable'; transform: Transform; message: string };
+  | {
+      kind: 'error';
+      transform: Transform;
+      reason: TransformAiErrorReason;
+      message: string;
+      hint?: string;
+    };
 
 const CHIP_WIDTH = 360;
 const CHIP_HEIGHT_ESTIMATE = 380;
@@ -37,17 +49,28 @@ function clampPosition(anchor: CursorAnchor | null): { left: number; top: number
   return { left: x, top: y };
 }
 
-export function Chip({ anchor, clipboard, onDismiss, onConfirm, quotaRemaining, quotaTotal, byok }: Props) {
+export function Chip({
+  anchor,
+  clipboard,
+  onDismiss,
+  onConfirm,
+  quotaRemaining: initialRemaining,
+  quotaTotal: initialTotal,
+  byok,
+}: Props) {
   const rootRef = useRef<HTMLDivElement>(null);
   const { left, top } = clampPosition(anchor);
   const [view, setView] = useState<View>({ kind: 'menu' });
   const [copying, setCopying] = useState(false);
+  const [quota, setQuota] = useState({ remaining: initialRemaining, total: initialTotal });
+  const currentReqId = useRef(0); // guards against stale AI responses
 
   const hasClipboard = clipboard.trim().length > 0;
 
-  const runTransform = useMemo(
-    () => (transform: Transform) => {
+  const runTransform = useCallback(
+    async (transform: Transform) => {
       const input = clipboard;
+
       if (transform.key === 'clean') {
         const { output, changes, before, after } = clean(input);
         const unchanged = output === input.trim();
@@ -59,6 +82,7 @@ export function Chip({ anchor, clipboard, onDismiss, onConfirm, quotaRemaining, 
         setView({ kind: 'result', transform, output, summary, unchanged });
         return;
       }
+
       if (transform.key === 'extract') {
         const result = extract(input);
         const count = totalMatches(result);
@@ -72,8 +96,54 @@ export function Chip({ anchor, clipboard, onDismiss, onConfirm, quotaRemaining, 
         });
         return;
       }
-      // AI transforms — not implemented yet
-      setView({ kind: 'unavailable', transform, message: strings.chip.aiNotReady });
+
+      // AI transform → talk to the service worker → talk to the Worker
+      const reqId = ++currentReqId.current;
+      setView({ kind: 'pending', transform });
+
+      const message: TransformAiRequest = {
+        type: 'transform-ai',
+        transform: transform.key as TransformAiRequest['transform'],
+        text: input,
+      };
+
+      let response: TransformAiResponse;
+      try {
+        response = (await chrome.runtime.sendMessage(message)) as TransformAiResponse;
+      } catch (err) {
+        console.debug('[tidy] sendMessage failed', err);
+        response = {
+          ok: false,
+          reason: 'network_error',
+          message: strings.chip.err.network_error.body,
+          status: 0,
+        };
+      }
+
+      // If another transform was picked while we were awaiting, drop this response.
+      if (reqId !== currentReqId.current) return;
+
+      if (response.ok) {
+        setView({
+          kind: 'result',
+          transform,
+          output: response.output,
+          summary: `${response.model} · ${response.latency_ms} ms`,
+          unchanged: false,
+        });
+        setQuota({ remaining: response.quota_remaining, total: response.quota_limit });
+      } else {
+        if (response.reason === 'quota_exceeded') {
+          setQuota((q) => ({ ...q, remaining: 0 }));
+        }
+        setView({
+          kind: 'error',
+          transform,
+          reason: response.reason,
+          message: response.message,
+          hint: response.hint,
+        });
+      }
     },
     [clipboard]
   );
@@ -82,11 +152,13 @@ export function Chip({ anchor, clipboard, onDismiss, onConfirm, quotaRemaining, 
     if (view.kind !== 'result' || !view.output || view.unchanged) return;
     setCopying(true);
     await onConfirm(view.output);
-    // brief visual confirmation, then close
     setTimeout(() => onDismiss(), 600);
   };
 
-  const backToMenu = () => setView({ kind: 'menu' });
+  const backToMenu = () => {
+    currentReqId.current++; // invalidate any pending AI response
+    setView({ kind: 'menu' });
+  };
 
   // Keyboard: Esc dismisses; letter shortcuts only in menu view; Enter confirms in result view.
   useEffect(() => {
@@ -102,13 +174,17 @@ export function Chip({ anchor, clipboard, onDismiss, onConfirm, quotaRemaining, 
         const match = TRANSFORMS.find((t) => t.shortcut === upper);
         if (match && !e.metaKey && !e.ctrlKey && !e.altKey && hasClipboard) {
           e.preventDefault();
-          runTransform(match);
+          void runTransform(match);
         }
         return;
       }
       if (view.kind === 'result' && e.key === 'Enter' && !view.unchanged && view.output) {
         e.preventDefault();
         void confirmCopy();
+      }
+      if (view.kind === 'error' && e.key === 'Enter' && view.reason === 'network_error') {
+        e.preventDefault();
+        void runTransform(view.transform);
       }
     }
     document.addEventListener('keydown', onKeyDown, true);
@@ -117,11 +193,14 @@ export function Chip({ anchor, clipboard, onDismiss, onConfirm, quotaRemaining, 
 
   // Focus management: first action button when view changes
   useEffect(() => {
-    const selector = view.kind === 'menu' ? '.chip-transform' : '.chip-action-primary, .chip-action-secondary';
+    const selector =
+      view.kind === 'menu' ? '.chip-transform' : '.chip-action-primary, .chip-action-secondary';
     rootRef.current?.querySelector<HTMLButtonElement>(selector)?.focus();
   }, [view.kind]);
 
-  const quotaLabel = byok ? strings.chip.quotaLabelByok : `${quotaRemaining}/${quotaTotal} ${strings.chip.quotaLabelFree}`;
+  const quotaLabel = byok
+    ? strings.chip.quotaLabelByok
+    : `${quota.remaining}/${quota.total} ${strings.chip.quotaLabelFree}`;
 
   // Header subtitle changes per view
   const subtitle =
@@ -130,9 +209,11 @@ export function Chip({ anchor, clipboard, onDismiss, onConfirm, quotaRemaining, 
       : view.kind === 'result'
       ? view.transform.key === 'extract'
         ? strings.chip.resultLabelExtract.toLowerCase()
-        : strings.chip.resultLabelClean.toLowerCase()
+        : view.transform.key === 'clean'
+        ? strings.chip.resultLabelClean.toLowerCase()
+        : view.transform.label.toLowerCase()
       : view.kind === 'pending'
-      ? `running ${view.transform.label.toLowerCase()}…`
+      ? `${strings.chip.pendingLabel.toLowerCase()} ${view.transform.label.toLowerCase()}…`
       : view.transform.label.toLowerCase();
 
   return (
@@ -149,7 +230,12 @@ export function Chip({ anchor, clipboard, onDismiss, onConfirm, quotaRemaining, 
           <em>·</em>
           <span className="chip-subtitle">{subtitle}</span>
         </div>
-        <button className="chip-close" onClick={onDismiss} aria-label={strings.chip.actionDismiss} type="button">
+        <button
+          className="chip-close"
+          onClick={onDismiss}
+          aria-label={strings.chip.actionDismiss}
+          type="button"
+        >
           ×
         </button>
       </header>
@@ -161,26 +247,60 @@ export function Chip({ anchor, clipboard, onDismiss, onConfirm, quotaRemaining, 
             {hasClipboard ? (
               <div className="chip-preview-text">{clipboard}</div>
             ) : (
-              <div className="chip-preview-text chip-preview-empty">{strings.chip.emptyClipboard}</div>
+              <div className="chip-preview-text chip-preview-empty">
+                {strings.chip.emptyClipboard}
+              </div>
             )}
           </div>
 
           <div className="chip-transforms" role="menu">
-            {TRANSFORMS.map((t) => (
-              <button
-                key={t.key}
-                type="button"
-                role="menuitem"
-                className="chip-transform"
-                data-ai={t.ai ? 'true' : 'false'}
-                disabled={!hasClipboard}
-                onClick={() => runTransform(t)}
-              >
-                <span className="chip-transform-icon" aria-hidden="true">{t.icon}</span>
-                <span className="chip-transform-label">{t.label}</span>
-                <span className="chip-transform-key" aria-label={`Shortcut: ${t.shortcut}`}>{t.shortcut}</span>
-              </button>
-            ))}
+            {TRANSFORMS.map((t) => {
+              const disabled =
+                !hasClipboard || (t.ai && !byok && quota.remaining <= 0);
+              return (
+                <button
+                  key={t.key}
+                  type="button"
+                  role="menuitem"
+                  className="chip-transform"
+                  data-ai={t.ai ? 'true' : 'false'}
+                  disabled={disabled}
+                  onClick={() => void runTransform(t)}
+                  title={
+                    t.ai && !byok && quota.remaining <= 0
+                      ? strings.chip.quotaExhausted
+                      : undefined
+                  }
+                >
+                  <span className="chip-transform-icon" aria-hidden="true">{t.icon}</span>
+                  <span className="chip-transform-label">{t.label}</span>
+                  <span className="chip-transform-key" aria-label={`Shortcut: ${t.shortcut}`}>
+                    {t.shortcut}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </>
+      )}
+
+      {view.kind === 'pending' && (
+        <>
+          <div className="chip-result">
+            <div className="chip-result-label">
+              <span className="chip-result-icon" aria-hidden="true">{view.transform.icon}</span>
+              <span>{strings.chip.pendingLabel} {view.transform.label}…</span>
+            </div>
+            <div className="chip-pending" aria-live="polite" aria-label="Loading">
+              <span className="chip-pending-dot" />
+              <span className="chip-pending-dot" />
+              <span className="chip-pending-dot" />
+            </div>
+          </div>
+          <div className="chip-actions">
+            <button type="button" className="chip-action-secondary" onClick={backToMenu}>
+              ← {strings.chip.actionBack}
+            </button>
           </div>
         </>
       )}
@@ -193,7 +313,9 @@ export function Chip({ anchor, clipboard, onDismiss, onConfirm, quotaRemaining, 
               <span>
                 {view.transform.key === 'extract'
                   ? strings.chip.resultLabelExtract
-                  : strings.chip.resultLabelClean}
+                  : view.transform.key === 'clean'
+                  ? strings.chip.resultLabelClean
+                  : view.transform.label}
               </span>
               <span className="chip-result-summary">· {view.summary}</span>
             </div>
@@ -209,11 +331,7 @@ export function Chip({ anchor, clipboard, onDismiss, onConfirm, quotaRemaining, 
           </div>
 
           <div className="chip-actions">
-            <button
-              type="button"
-              className="chip-action-secondary"
-              onClick={backToMenu}
-            >
+            <button type="button" className="chip-action-secondary" onClick={backToMenu}>
               ← {strings.chip.actionBack}
             </button>
             <button
@@ -228,19 +346,33 @@ export function Chip({ anchor, clipboard, onDismiss, onConfirm, quotaRemaining, 
         </>
       )}
 
-      {view.kind === 'unavailable' && (
+      {view.kind === 'error' && (
         <>
           <div className="chip-result">
-            <div className="chip-result-label">
+            <div className="chip-result-label chip-result-label-error">
               <span className="chip-result-icon" aria-hidden="true">⚠️</span>
-              <span>{view.transform.label}</span>
+              <span>{strings.chip.err[view.reason]?.title ?? 'Transform failed'}</span>
             </div>
-            <div className="chip-result-empty">{view.message}</div>
+            <div className="chip-result-empty chip-result-error-body">
+              {strings.chip.err[view.reason]?.body ?? view.message}
+              {view.hint && (
+                <div className="chip-result-hint">{view.hint}</div>
+              )}
+            </div>
           </div>
           <div className="chip-actions">
-            <button type="button" className="chip-action-primary" onClick={backToMenu}>
+            <button type="button" className="chip-action-secondary" onClick={backToMenu}>
               ← {strings.chip.actionBack}
             </button>
+            {view.reason === 'network_error' && (
+              <button
+                type="button"
+                className="chip-action-primary"
+                onClick={() => void runTransform(view.transform)}
+              >
+                {strings.chip.actionRetry}
+              </button>
+            )}
           </div>
         </>
       )}
@@ -253,6 +385,11 @@ export function Chip({ anchor, clipboard, onDismiss, onConfirm, quotaRemaining, 
           {view.kind === 'result' && !view.unchanged && view.output ? (
             <>
               <span className="chip-kbd">Enter</span> to copy ·{' '}
+              <span className="chip-kbd">Esc</span> back
+            </>
+          ) : view.kind === 'error' && view.reason === 'network_error' ? (
+            <>
+              <span className="chip-kbd">Enter</span> retry ·{' '}
               <span className="chip-kbd">Esc</span> back
             </>
           ) : (

@@ -43,5 +43,14 @@ export default defineManifest({
     },
   },
   permissions: ['storage', 'activeTab'],
-  host_permissions: [],
+  // host_permissions must include every origin the SW/content script will fetch.
+  // Keep this list minimal — each entry appears in the Chrome install dialog
+  // and Web Store review flags overreach.
+  host_permissions: [
+    'http://127.0.0.1:*/*',                       // wrangler dev
+    'https://tidy-api.wobble.workers.dev/*',      // production Worker (TBD)
+    'https://generativelanguage.googleapis.com/*', // BYOK: direct-to-Gemini
+    'https://api.anthropic.com/*',                 // BYOK: direct-to-Anthropic
+    'https://api.openai.com/*',                    // BYOK: direct-to-OpenAI
+  ],
 });

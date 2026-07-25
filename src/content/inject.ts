@@ -11,7 +11,7 @@
 import { createRoot, type Root } from 'react-dom/client';
 import { createElement } from 'react';
 import { Chip } from './Chip';
-import type { ExtensionMessage, CursorAnchor } from '../types';
+import type { ExtensionMessage, CursorAnchor, QuotaFetchResponse } from '../types';
 import chipCss from './chip.css?inline';
 
 const HOST_ID = 'tidy-chip-host';
@@ -75,7 +75,7 @@ async function mount() {
   document.body.appendChild(host);
   activeHost = host;
 
-  const clipboard = await readClipboard();
+  const [clipboard, quota] = await Promise.all([readClipboard(), readQuota()]);
   const root = createRoot(mountPoint);
   activeRoot = root;
 
@@ -94,11 +94,22 @@ async function mount() {
       clipboard,
       onDismiss: handleDismiss,
       onConfirm: handleConfirm,
-      quotaRemaining: 5,
-      quotaTotal: 5,
-      byok: false,
+      quotaRemaining: quota.remaining,
+      quotaTotal: quota.limit,
+      byok: false, // TODO v0.6 — read BYOK state and pass true when key configured
     })
   );
+}
+
+async function readQuota(): Promise<{ remaining: number; limit: number }> {
+  try {
+    const res = (await chrome.runtime.sendMessage({ type: 'quota-fetch' })) as QuotaFetchResponse;
+    if (res?.ok) return { remaining: res.remaining, limit: res.limit };
+  } catch (err) {
+    console.debug('[tidy] quota fetch failed', err);
+  }
+  // Fallback so the footer isn't blank on first ever open before any Worker call.
+  return { remaining: 5, limit: 5 };
 }
 
 chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendResponse) => {
