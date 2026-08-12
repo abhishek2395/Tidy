@@ -14,7 +14,11 @@
 // The SW never persists text; never writes it to storage; never logs it.
 
 import { getClientId } from '../lib/client-id';
+import { getByok } from '../lib/byok';
 import { WORKER_BASE_URL, CLIENT_VERSION, QUOTA_CACHE_KEY, type QuotaCache } from '../lib/config';
+import { PROMPTS } from '../ai/prompts';
+import { providerFromByok } from '../ai/providers';
+import { ProviderError } from '../ai/providers/types';
 import type {
   ExtensionMessage,
   TransformAiRequest,
@@ -68,6 +72,69 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
 // -----------------------------------------------------------------------------
 
 async function handleTransformAi(req: TransformAiRequest): Promise<TransformAiResponse> {
+  // BYOK short-circuit: if the user configured their own key, call the
+  // provider directly. Our Worker is never contacted and no request ever
+  // leaves the browser with our name on it.
+  const byok = await getByok();
+  if (byok) {
+    return handleByokTransform(req, byok);
+  }
+
+  return handleFreeTierTransform(req);
+}
+
+async function handleByokTransform(
+  req: TransformAiRequest,
+  byok: NonNullable<Awaited<ReturnType<typeof getByok>>>
+): Promise<TransformAiResponse> {
+  const started = Date.now();
+  const provider = providerFromByok(byok);
+  const prompt = PROMPTS[req.transform];
+  if (!prompt) {
+    return {
+      ok: false,
+      reason: 'invalid_transform',
+      message: `Unknown transform "${req.transform}".`,
+    };
+  }
+
+  try {
+    const result = await provider.call({
+      system: prompt.system,
+      user: prompt.build(req.text),
+      maxOutputTokens: 1024,
+      temperature: 0.4,
+    });
+    return {
+      ok: true,
+      output: result.output,
+      transform: req.transform,
+      model: result.modelId,
+      // BYOK has no quota; -1 is a JSON-safe sentinel for "unlimited"
+      // (Infinity serializes to null across chrome.runtime.sendMessage).
+      quota_remaining: -1,
+      quota_limit: -1,
+      latency_ms: Date.now() - started,
+    };
+  } catch (err) {
+    const status = err instanceof ProviderError ? err.status : 0;
+    const message = err instanceof Error ? err.message : String(err);
+    console.debug('[tidy] byok provider error', status, message);
+    return {
+      ok: false,
+      reason: status === 0 ? 'network_error' : 'upstream_error',
+      message: status === 0
+        ? "Can't reach the provider. Check your connection or try again."
+        : `The provider (${provider.name}) rejected the request.`,
+      status,
+      hint: status === 401 || status === 403
+        ? 'The API key was rejected. Update it in the Tidy popup.'
+        : undefined,
+    };
+  }
+}
+
+async function handleFreeTierTransform(req: TransformAiRequest): Promise<TransformAiResponse> {
   const clientId = await getClientId();
   const url = `${WORKER_BASE_URL}/v1/transform`;
 
@@ -137,6 +204,19 @@ async function handleTransformAi(req: TransformAiRequest): Promise<TransformAiRe
 }
 
 async function handleQuotaFetch(): Promise<QuotaFetchResponse> {
+  // BYOK: no quota, no Worker call. -1 is our "unlimited" sentinel
+  // (JSON-safe across chrome.runtime.sendMessage; the UI reads byok flag
+  // from chrome.storage instead of these numbers).
+  const byok = await getByok();
+  if (byok) {
+    return {
+      ok: true,
+      remaining: -1,
+      limit: -1,
+      fromCache: false,
+    };
+  }
+
   const cached = await readCachedQuota();
   // Kick off a refresh in the background; return cached immediately.
   void refreshQuotaInBackground();

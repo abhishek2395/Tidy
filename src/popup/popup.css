@@ -129,13 +129,37 @@ html, body {
   transform: translate(-2px, -2px);
 }
 
-.popup-save {
+.popup-label-hint {
+  font-weight: 400;
+  color: #6b6359;
+  font-size: 11px;
+}
+
+.popup-field-error {
+  font-family: 'DM Mono', ui-monospace, monospace;
+  font-size: 10.5px;
+  color: #8f1e00;
+  line-height: 1.4;
+}
+
+.popup-field-error code {
+  background: #fdece7;
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 10px;
+}
+
+.popup-actions {
+  display: flex;
+  gap: 8px;
   margin-top: 4px;
+}
+
+.popup-save,
+.popup-clear {
   padding: 10px 16px;
   border: 2px solid var(--ink);
   border-radius: 100px;
-  background: var(--tomato);
-  color: var(--paper);
   font-family: inherit;
   font-size: 14px;
   font-weight: 700;
@@ -143,12 +167,76 @@ html, body {
   transition: transform 0.15s var(--ease-spring), box-shadow 0.15s;
 }
 
-.popup-save:hover {
+.popup-save {
+  background: var(--tomato);
+  color: var(--paper);
+  flex: 1;
+}
+
+.popup-clear {
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.popup-save:hover:not(:disabled),
+.popup-clear:hover:not(:disabled) {
   transform: translate(-2px, -2px);
   box-shadow: 3px 3px 0 var(--ink);
 }
 
-.popup-save:active {
+.popup-save:active,
+.popup-clear:active {
   transform: translate(0, 0);
   box-shadow: 0 0 0 var(--ink);
+}
+
+.popup-save:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: var(--paper);
+  color: #6b6359;
+}
+
+.popup-status {
+  padding: 10px 12px;
+  border: 2px solid var(--ink);
+  border-radius: 10px;
+  font-size: 12px;
+  line-height: 1.4;
+  margin-bottom: 12px;
+}
+
+.popup-status-ok {
+  background: #eaf7e5;
+  color: var(--ink);
+}
+
+.popup-status-ok strong {
+  font-weight: 700;
+}
+
+.popup-status-err {
+  background: #fdece7;
+  color: #8f1e00;
+  border-color: #8f1e00;
+  margin-top: 4px;
+  margin-bottom: 0;
+}
+
+.popup-privacy {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 2px dashed rgba(26, 24, 20, 0.15);
+  font-size: 11px;
+  line-height: 1.5;
+  color: #6b6359;
+}
+
+.popup-privacy code {
+  font-family: 'DM Mono', ui-monospace, monospace;
+  background: var(--cream);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 10px;
+  color: var(--ink);
 }

@@ -11,6 +11,7 @@
 import { createRoot, type Root } from 'react-dom/client';
 import { createElement } from 'react';
 import { Chip } from './Chip';
+import { getByok } from '../lib/byok';
 import type { ExtensionMessage, CursorAnchor, QuotaFetchResponse } from '../types';
 import chipCss from './chip.css?inline';
 
@@ -75,7 +76,11 @@ async function mount() {
   document.body.appendChild(host);
   activeHost = host;
 
-  const [clipboard, quota] = await Promise.all([readClipboard(), readQuota()]);
+  const [clipboard, quota, byok] = await Promise.all([
+    readClipboard(),
+    readQuota(),
+    getByok(),
+  ]);
   const root = createRoot(mountPoint);
   activeRoot = root;
 
@@ -96,7 +101,7 @@ async function mount() {
       onConfirm: handleConfirm,
       quotaRemaining: quota.remaining,
       quotaTotal: quota.limit,
-      byok: false, // TODO v0.6 — read BYOK state and pass true when key configured
+      byok: byok !== null,
     })
   );
 }

@@ -131,7 +131,11 @@ export function Chip({
           summary: `${response.model} · ${response.latency_ms} ms`,
           unchanged: false,
         });
-        setQuota({ remaining: response.quota_remaining, total: response.quota_limit });
+        // Skip quota update for BYOK sentinel (-1 means "unlimited");
+        // byok prop drives the footer label anyway.
+        if (response.quota_remaining >= 0 && response.quota_limit >= 0) {
+          setQuota({ remaining: response.quota_remaining, total: response.quota_limit });
+        }
       } else {
         if (response.reason === 'quota_exceeded') {
           setQuota((q) => ({ ...q, remaining: 0 }));
