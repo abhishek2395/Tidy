@@ -42,6 +42,17 @@ export default defineManifest({
       description: 'Open Tidy chip on the active tab',
     },
   },
+  // Onboarding welcome page — opened programmatically on first install.
+  // web_accessible_resources makes it fetchable from an http(s) tab context;
+  // for chrome.tabs.create with chrome-extension:// URLs it isn't strictly
+  // required, but we list it so future in-page links to /welcome.html
+  // (e.g. from the marketing site) work too.
+  web_accessible_resources: [
+    {
+      resources: ['src/onboarding/welcome.html'],
+      matches: ['<all_urls>'],
+    },
+  ],
   permissions: ['storage', 'activeTab'],
   // host_permissions must include every origin the SW/content script will fetch.
   // Keep this list minimal — each entry appears in the Chrome install dialog

@@ -45,9 +45,27 @@ chrome.commands.onCommand.addListener(async (command) => {
   }
 });
 
-chrome.runtime.onInstalled.addListener(({ reason }) => {
-  if (reason === 'install') {
-    console.info('[tidy] installed');
+// First-install onboarding: open the welcome page in a new tab.
+// On subsequent onInstalled events (update / chrome_update / shared_module_update)
+// we skip — either the user has already seen it, or we're mid-update and
+// don't want to surprise them.
+chrome.runtime.onInstalled.addListener(async ({ reason }) => {
+  if (reason !== 'install') return;
+  console.info('[tidy] installed');
+
+  // Extra guard: if the user already saw welcome (perhaps they reinstalled
+  // for dev), don't force it again.
+  const seen = await new Promise<boolean>((resolve) => {
+    chrome.storage.local.get('tidy:welcome_seen', (r) => resolve(Boolean(r?.['tidy:welcome_seen'])));
+  });
+  if (seen) return;
+
+  try {
+    await chrome.tabs.create({
+      url: chrome.runtime.getURL('src/onboarding/welcome.html'),
+    });
+  } catch (err) {
+    console.debug('[tidy] could not open welcome tab', err);
   }
 });
 
