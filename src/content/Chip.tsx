@@ -359,6 +359,13 @@ export function Chip({
             </div>
             <div className="chip-result-empty chip-result-error-body">
               {strings.chip.err[view.reason]?.body ?? view.message}
+              {/* If the SW gave us a specific detail from the provider,
+                  show it — much more useful than the generic body. */}
+              {view.reason === 'upstream_error' && view.message && (
+                <div className="chip-result-detail">
+                  <strong>Provider said:</strong> {view.message}
+                </div>
+              )}
               {view.hint && (
                 <div className="chip-result-hint">{view.hint}</div>
               )}

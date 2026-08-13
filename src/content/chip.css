@@ -346,6 +346,22 @@
   font-style: italic;
 }
 
+.chip-result-detail {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(143, 30, 0, 0.3);
+  font-family: 'DM Mono', ui-monospace, monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  color: #6b3a2a;
+  word-break: break-word;
+}
+
+.chip-result-detail strong {
+  font-weight: 700;
+  color: #8f1e00;
+}
+
 /* Disabled transform (e.g. AI when quota exhausted) */
 .chip-transform:disabled {
   opacity: 0.4;

@@ -123,13 +123,20 @@ async function handleByokTransform(
     return {
       ok: false,
       reason: status === 0 ? 'network_error' : 'upstream_error',
+      // Include the underlying provider error detail so the user has
+      // something actionable in the chip without opening DevTools.
       message: status === 0
         ? "Can't reach the provider. Check your connection or try again."
-        : `The provider (${provider.name}) rejected the request.`,
+        : `${provider.name} returned HTTP ${status}. ${message}`,
       status,
-      hint: status === 401 || status === 403
-        ? 'The API key was rejected. Update it in the Tidy popup.'
-        : undefined,
+      hint:
+        status === 401 || status === 403
+          ? 'The API key was rejected. Regenerate it at your provider and update it in the Tidy popup.'
+          : status === 404
+          ? 'The model may not be available on your account. Try creating a new API key at aistudio.google.com.'
+          : status === 429
+          ? "You're being rate-limited by the provider. Wait a minute and try again."
+          : undefined,
     };
   }
 }
