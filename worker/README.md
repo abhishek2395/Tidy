@@ -55,7 +55,7 @@ Success:
 {
   "output": "...",
   "transform": "polish",
-  "model": "mock" | "gemini-2.5-flash-lite",
+  "model": "mock" | "gemini-2.5-flash",
   "quota_remaining": 4,
   "quota_limit": 5,
   "latency_ms": 121

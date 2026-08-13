@@ -5,7 +5,9 @@
 import { type Provider, type ProviderRequest, type ProviderResponse, ProviderError } from './types';
 
 const BASE = 'https://generativelanguage.googleapis.com/v1beta';
-const DEFAULT_MODEL = 'gemini-2.5-flash-lite';
+// gemini-2.5-flash: current-gen production, GA, broadly available.
+// Previously used -flash-lite which Google is EOLing for new users.
+const DEFAULT_MODEL = 'gemini-2.5-flash';
 
 export function createGeminiProvider(apiKey: string, model = DEFAULT_MODEL): Provider {
   return {

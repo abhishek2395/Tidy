@@ -17,7 +17,7 @@ export interface ProviderResponse {
 export interface Provider {
   readonly id: string;   // provider id used in logs/UI (e.g. "gemini")
   readonly name: string; // human-friendly (e.g. "Google Gemini")
-  readonly modelId: string; // specific model used (e.g. "gemini-2.5-flash-lite")
+  readonly modelId: string; // specific model used (e.g. "gemini-2.5-flash")
   call(req: ProviderRequest): Promise<ProviderResponse>;
 }
 

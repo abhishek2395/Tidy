@@ -10,7 +10,7 @@ export interface ProviderRequest {
 
 export interface ProviderResponse {
   output: string;
-  modelId: string; // what we actually called (e.g. "gemini-2.5-flash-lite" or "mock")
+  modelId: string; // what we actually called (e.g. "gemini-2.5-flash" or "mock")
 }
 
 export interface Provider {
