@@ -3,7 +3,8 @@ import { strings } from '../lib/strings';
 import {
   clearByok,
   getByok,
-  looksValidKey,
+  keyLooksSensible,
+  keyMatchesExpectedFormat,
   PROVIDERS,
   setByok,
   type ProviderId,
@@ -34,8 +35,12 @@ export function Popup() {
   }, []);
 
   const providerMeta = PROVIDERS.find((p) => p.id === provider)!;
-  const keyLooksValid = apiKey.length === 0 ? true : looksValidKey(provider, apiKey);
-  const canSave = apiKey.length > 0 && keyLooksValid && saveState.kind !== 'saving';
+  const canSave = keyLooksSensible(apiKey) && saveState.kind !== 'saving';
+  // Soft warning: key doesn't match the canonical prefix we expect for this
+  // provider. Still saveable — older/enterprise keys often use different
+  // formats, and the provider is the real authenticator.
+  const showFormatWarning =
+    apiKey.trim().length >= 20 && !keyMatchesExpectedFormat(provider, apiKey);
 
   const onSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -117,12 +122,12 @@ export function Popup() {
               placeholder={`${providerMeta.keyHint} — your key, stored locally`}
               autoComplete="off"
               spellCheck={false}
-              aria-invalid={!keyLooksValid}
             />
-            {!keyLooksValid && apiKey.length > 0 && (
-              <span className="popup-field-error">
-                Doesn't look like a {providerMeta.label} key
-                (expected to start with <code>{providerMeta.keyHint}</code>).
+            {showFormatWarning && (
+              <span className="popup-field-warn">
+                Heads up — most {providerMeta.label} keys start with{' '}
+                <code>{providerMeta.keyHint}</code>. Yours doesn't, but you can
+                still save it. If the provider rejects it later, that's the tell.
               </span>
             )}
           </label>

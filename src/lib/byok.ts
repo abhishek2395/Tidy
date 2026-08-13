@@ -53,18 +53,27 @@ export function clearByok(): Promise<void> {
 }
 
 /**
- * Sanity check on an API key's shape. NOT authentication — just catches
- * obvious paste errors before a request is made. The provider is the real
- * validator; a call with a wrong key returns 401 which we surface as an
- * upstream_error.
+ * Hard save-gate: the minimum a string must look like to plausibly be an
+ * API key at all. Catches accidental empty/short/whitespace-only pastes.
+ * The provider is the real authenticator — a wrong key returns 401 which
+ * we surface as an upstream_error.
  */
-export function looksValidKey(provider: ProviderId, key: string): boolean {
+export function keyLooksSensible(key: string): boolean {
   const k = key.trim();
-  if (k.length < 20) return false;
+  return k.length >= 20 && !/\s/.test(k);
+}
+
+/**
+ * Informational: does the key match the canonical prefix for this provider?
+ * Used for a soft warning in the popup — NOT a save gate. Users with older
+ * key formats or Vertex-issued keys should still be able to save.
+ */
+export function keyMatchesExpectedFormat(provider: ProviderId, key: string): boolean {
+  const k = key.trim();
   switch (provider) {
-    case 'gemini':    return k.startsWith('AIza')    && k.length >= 35;
-    case 'anthropic': return k.startsWith('sk-ant-') && k.length >= 40;
-    case 'openai':    return k.startsWith('sk-')     && k.length >= 30;
+    case 'gemini':    return k.startsWith('AIza');
+    case 'anthropic': return k.startsWith('sk-ant-');
+    case 'openai':    return k.startsWith('sk-');
   }
 }
 
@@ -74,6 +83,6 @@ function isValidConfig(v: unknown): v is ByokConfig {
   return (
     (cfg.provider === 'gemini' || cfg.provider === 'anthropic' || cfg.provider === 'openai') &&
     typeof cfg.apiKey === 'string' &&
-    cfg.apiKey.trim().length >= 20
+    keyLooksSensible(cfg.apiKey)
   );
 }

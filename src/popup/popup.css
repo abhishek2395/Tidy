@@ -149,6 +149,27 @@ html, body {
   font-size: 10px;
 }
 
+/* Non-blocking format warning (amber). Contrast with popup-field-error which
+   is a hard save-blocker (rust red). */
+.popup-field-warn {
+  font-size: 11px;
+  color: #6b5300;
+  line-height: 1.45;
+  padding: 8px 10px;
+  background: #fff4cc;
+  border: 1px solid var(--lemon);
+  border-radius: 8px;
+}
+
+.popup-field-warn code {
+  font-family: 'DM Mono', ui-monospace, monospace;
+  background: rgba(255, 210, 63, 0.4);
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 10px;
+  color: var(--ink);
+}
+
 .popup-actions {
   display: flex;
   gap: 8px;
