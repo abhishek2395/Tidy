@@ -5,9 +5,12 @@
 import { type Provider, type ProviderRequest, type ProviderResponse, ProviderError } from './types';
 
 const BASE = 'https://generativelanguage.googleapis.com/v1beta';
-// gemini-2.5-flash: current-gen production, GA, broadly available.
-// Previously used -flash-lite which Google is EOLing for new users.
-const DEFAULT_MODEL = 'gemini-2.5-flash';
+// Alias — auto-tracks Google's current flash model so a deprecation of
+// any specific version (gemini-2.5-flash / -lite / -3.5-flash-lite / etc.)
+// doesn't break Tidy. Trade-off: model behavior can shift when Google
+// moves the alias. Acceptable for transform tasks; v1.1 will expose an
+// override in settings for users who want to pin.
+const DEFAULT_MODEL = 'gemini-flash-latest';
 
 export function createGeminiProvider(apiKey: string, model = DEFAULT_MODEL): Provider {
   return {

@@ -7,7 +7,11 @@
 import { type Provider, type ProviderRequest, type ProviderResponse, ProviderError } from './types';
 
 const URL_CHAT = 'https://api.openai.com/v1/chat/completions';
-const DEFAULT_MODEL = 'gpt-4o-mini';
+// gpt-5.6-luna — cheapest current-tier chat completion model, ~$0.20/MTok
+// input. gpt-5.6 alias tracks the higher-tier "sol" model, not this one;
+// pinning to -luna explicitly picks the budget option Tidy is optimized for.
+// Older gpt-4o-mini still works but was 5x the cost per token.
+const DEFAULT_MODEL = 'gpt-5.6-luna';
 
 export function createOpenAIProvider(apiKey: string, model = DEFAULT_MODEL): Provider {
   return {

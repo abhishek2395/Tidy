@@ -10,7 +10,10 @@
 import { type Provider, type ProviderRequest, type ProviderResponse, ProviderError } from './types';
 
 const URL_MESSAGES = 'https://api.anthropic.com/v1/messages';
-const DEFAULT_MODEL = 'claude-3-5-haiku-latest';
+// Alias — resolves to claude-haiku-4-5-20251001 today. Auto-follows future
+// Haiku releases without a code change. See platform.claude.com/docs
+// /en/about-claude/models for current alias table.
+const DEFAULT_MODEL = 'claude-haiku-4-5';
 const API_VERSION = '2023-06-01';
 
 export function createAnthropicProvider(apiKey: string, model = DEFAULT_MODEL): Provider {

@@ -4,7 +4,7 @@ compatibility_date = "2025-07-18"
 
 # Daily free limit. Bump for testing; tighten for production.
 [vars]
-GEMINI_MODEL = "gemini-2.5-flash"
+GEMINI_MODEL = "gemini-flash-latest"
 DAILY_FREE_LIMIT = "5"
 # When the secret GEMINI_API_KEY is not set (local dev) the worker falls back
 # to the mock provider. Set in production via:

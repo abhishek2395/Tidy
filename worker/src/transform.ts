@@ -48,7 +48,7 @@ export async function handleTransform(request: Request, env: Env): Promise<Respo
   // Pick the provider. Mock when no key is configured (local dev).
   const provider: Provider =
     env.GEMINI_API_KEY && env.GEMINI_API_KEY.length > 0
-      ? createGeminiProvider(env.GEMINI_API_KEY, env.GEMINI_MODEL ?? 'gemini-2.5-flash')
+      ? createGeminiProvider(env.GEMINI_API_KEY, env.GEMINI_MODEL ?? 'gemini-flash-latest')
       : mockProvider;
 
   const prompt = PROMPTS[transform];
